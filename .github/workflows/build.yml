@@ -24,9 +24,6 @@ jobs:
           - platform: hi3516ev300
             board: hi3516ev300_neo
             kernel: "6.6"
-            experimental: true
-
-    continue-on-error: ${{matrix.experimental || false}}
 
     steps:
       - name: Checkout Source
@@ -60,6 +57,21 @@ jobs:
           if [ ! -f br-ext-chip-hisilicon/board/hi3516ev200/hi3516ev300.4.15.config ]; then
             cp br-ext-chip-hisilicon/board/hi3516ev200/hi3516ev300.generic.config \
                br-ext-chip-hisilicon/board/hi3516ev200/hi3516ev300.4.15.config
+            # Disable features incompatible with mainline 6.6
+            printf '%s\n' \
+              '# CONFIG_CMA is not set' \
+              '# CONFIG_DMA_CMA is not set' \
+              'CONFIG_STACKPROTECTOR=y' \
+              'CONFIG_STACKPROTECTOR_STRONG=y' \
+              '# CONFIG_DEBUG_INFO is not set' \
+              '# CONFIG_FTRACE is not set' \
+              '# CONFIG_INPUT is not set' \
+              '# CONFIG_VT is not set' \
+              '# CONFIG_SOUND is not set' \
+              '# CONFIG_USB_SUPPORT is not set' \
+              '# CONFIG_NFS_FS is not set' \
+              '# CONFIG_DEBUG_KERNEL is not set' \
+              >> br-ext-chip-hisilicon/board/hi3516ev200/hi3516ev300.4.15.config
           fi
 
           # Create all-patches-neo with empty linux dir

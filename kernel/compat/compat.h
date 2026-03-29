@@ -2,6 +2,7 @@
 #define COMPAT_H
 
 #include <linux/i2c.h>
+#include <linux/version.h>
 
 #if defined(hi3516ev200)
 
@@ -19,9 +20,18 @@
 #define HI_PRX "hi_"
 #define VENDOR_PRX "hi35xx_"
 
+/*
+ * hi_i2c_master_send is exported by the vendor i2c-hibvt driver (in-kernel).
+ * On mainline 6.6+ where i2c-hibvt may not be built, fall back to the
+ * standard i2c_master_send which has the same signature and behavior.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 extern int hi_i2c_master_send(const struct i2c_client *client,
 			      const char *buf, int count);
 #define I2C_MASTER_SEND hi_i2c_master_send
+#else
+#define I2C_MASTER_SEND i2c_master_send
+#endif
 #define GET_CMA_ZONE hisi_get_cma_zone
 
 #define DEFAULT_ALLOCATOR "hisi"
@@ -59,16 +69,14 @@ extern int hi_i2c_master_send(const struct i2c_client *client,
 #error CHIPARCH must be set to supported values
 #endif
 
-#include <linux/version.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
 /*
  * 6.4+ reworked symbol export internals (__CRC_SYMBOL, struct kernel_symbol
- * moved to asm-based .export_symbol section). Use function aliasing instead:
- * create a global alias via __attribute__((alias)) and export it normally.
+ * removed from public API). Use a no-op here; callers that need actual
+ * aliases for binary blobs must define wrapper functions explicitly.
+ * See EXPORT_COMPAT_MMZ in media-mem.c for the hil_* wrappers.
  */
-#define EXPORT_ALIAS(sym, alias)                                            \
-	extern typeof(sym) alias __attribute__((alias(#sym)));              \
-	EXPORT_SYMBOL(alias)
+#define EXPORT_ALIAS(sym, alias) /* no-op on 6.4+ */
 #else
 #define EXPORT_ALIAS(sym, alias)                                            \
 	extern typeof(sym) sym;                                             \

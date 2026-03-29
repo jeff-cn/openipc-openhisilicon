@@ -41,9 +41,22 @@
 #include "../../../../compat/compat.h"
 #include "../../../../compat/kernel_compat.h"
 
-#define EXPORT_COMPAT_MMZ(common_name)    \
-	EXPORT_SYMBOL(mmz_##common_name); \
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+/*
+ * On 6.4+, create function-level aliases using __attribute__((alias)).
+ * The alias and EXPORT_SYMBOL must be at file scope after the function
+ * is defined, which EXPORT_COMPAT_MMZ is placed at.
+ */
+#define EXPORT_COMPAT_MMZ(common_name)                                      \
+	EXPORT_SYMBOL(mmz_##common_name);                                   \
+	typeof(mmz_##common_name) hil_##common_name                         \
+		__attribute__((alias("mmz_" #common_name)));                \
+	EXPORT_SYMBOL(hil_##common_name)
+#else
+#define EXPORT_COMPAT_MMZ(common_name)                                      \
+	EXPORT_SYMBOL(mmz_##common_name);                                   \
 	EXPORT_ALIAS(mmz_##common_name, hil_##common_name)
+#endif
 
 OSAL_LIST_HEAD(mmz_list);
 
@@ -664,11 +677,18 @@ unsigned long usr_virt_to_phys(unsigned long virt)
 		return 0;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
+	pte = pte_offset_kernel(pmd, virt);
+#else
 	pte = pte_offset_map(pmd, virt);
+#endif
 
-	if (pte_none(*pte)) {
+	if (!pte || pte_none(*pte)) {
 		printk("printk: not mapped in pte!\n");
-		pte_unmap(pte);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
+		if (pte)
+			pte_unmap(pte);
+#endif
 		return 0;
 	}
 
@@ -1206,8 +1226,13 @@ int __init media_mem_init(void)
 	}
 
 	if (strcmp(setup_allocator, "cma") == 0) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) && defined(CONFIG_CMA)
 		ret = cma_allocator_setopt(&the_allocator);
 		allocator_type = 1;
+#else
+		printk("CMA allocator not available on this kernel, using " DEFAULT_ALLOCATOR "\n");
+		ret = allocator_setopt(&the_allocator);
+#endif
 	} else if (strcmp(setup_allocator, DEFAULT_ALLOCATOR) == 0) {
 		ret = allocator_setopt(&the_allocator);
 	} else {
