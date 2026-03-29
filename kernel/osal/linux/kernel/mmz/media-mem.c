@@ -18,7 +18,7 @@
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/version.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <asm/io.h>
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
@@ -39,6 +39,7 @@
 #include "allocator.h"
 
 #include "../../../../compat/compat.h"
+#include "../../../../compat/kernel_compat.h"
 
 #define EXPORT_COMPAT_MMZ(common_name)    \
 	EXPORT_SYMBOL(mmz_##common_name); \
@@ -50,7 +51,7 @@ extern struct osal_list_head map_mmz_list;
 OSAL_LIST_HEAD(map_mmz_list);
 
 int anony = 0;
-static DEFINE_SEMAPHORE(mmz_lock);
+static compat_DEFINE_SEMAPHORE(mmz_lock);
 
 module_param(anony, int, S_IRUGO);
 int zone_number = 0;
@@ -65,7 +66,7 @@ static char __initdata setup_zones[MMZ_SETUP_CMDLINE_LEN] =
 	CONFIG_VENDOR_MMZ_DEFAULT;
 static int __init parse_kern_cmdline(char *line)
 {
-	strlcpy(setup_zones, line, sizeof(setup_zones));
+	compat_strlcpy(setup_zones, line, sizeof(setup_zones));
 
 	return 1;
 }
@@ -74,7 +75,7 @@ __setup("mmz=", parse_kern_cmdline);
 static char __initdata setup_allocator[MMZ_ALLOCATOR_NAME_LEN];
 static int __init parse_kern_allocator(char *line)
 {
-	strlcpy(setup_allocator, line, sizeof(setup_allocator));
+	compat_strlcpy(setup_allocator, line, sizeof(setup_allocator));
 	return 1;
 }
 __setup("mmz_allocator=", parse_kern_allocator);
@@ -118,7 +119,7 @@ mmz_mmz_t *mmz_mmz_create(const char *name, unsigned long gfp,
 	}
 
 	memset(p, 0, sizeof(mmz_mmz_t) + 1);
-	strlcpy(p->name, name, MMZ_MMZ_NAME_LEN);
+	compat_strlcpy(p->name, name, MMZ_MMZ_NAME_LEN);
 	p->gfp = gfp;
 	p->phys_start = phys_start;
 	p->nbytes = nbytes;
@@ -151,7 +152,7 @@ mmz_mmz_t *mmz_mmz_create_v2(const char *name, unsigned long gfp,
 	}
 
 	memset(p, 0, sizeof(mmz_mmz_t));
-	strlcpy(p->name, name, MMZ_MMZ_NAME_LEN);
+	compat_strlcpy(p->name, name, MMZ_MMZ_NAME_LEN);
 	p->gfp = gfp;
 	p->phys_start = phys_start;
 	p->nbytes = nbytes;
@@ -421,7 +422,7 @@ int mmz_mmb_flush_dcache_byaddr(void *kvirt, unsigned long phys_addr,
      */
 
 #ifdef CONFIG_64BIT
-	__flush_dcache_area(kvirt, length);
+	compat_flush_dcache_area(kvirt, length);
 #else
 		/*
      * dmac_map_area is invalid in  hi3518ev200 kernel,
@@ -455,7 +456,7 @@ int mmz_mmb_invalid_cache_byaddr(void *kvirt, unsigned long phys_addr,
 		return -EINVAL;
 
 #ifdef CONFIG_64BIT
-	__flush_dcache_area(kvirt, length);
+	compat_flush_dcache_area(kvirt, length);
 #else
 		/*
      * dmac_map_area is invalid in  hi3518ev200 kernel,
@@ -582,9 +583,9 @@ EXPORT_COMPAT_MMZ(mmb_free);
 	do {                                                              \
 		mmz_mmz_t *__mach_mmb_zone__ = NULL;                      \
 		(p) = NULL;                                               \
-		list_for_each_entry(__mach_mmb_zone__, &mmz_list, list) { \
+		osal_list_for_each_entry(__mach_mmb_zone__, &mmz_list, list) { \
 			mmz_mmb_t *__mach_mmb__ = NULL;                   \
-			list_for_each_entry(__mach_mmb__,                 \
+			osal_list_for_each_entry(__mach_mmb__,                 \
 					    &__mach_mmb_zone__->mmb_list, \
 					    list) {                       \
 				if (__mach_mmb__->member == (val)) {      \
@@ -610,6 +611,9 @@ EXPORT_COMPAT_MMZ(mmb_getby_phys);
 unsigned long usr_virt_to_phys(unsigned long virt)
 {
 	pgd_t *pgd = NULL;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	p4d_t *p4d = NULL;
+#endif
 	pud_t *pud = NULL;
 	pmd_t *pmd = NULL;
 	pte_t *pte = NULL;
@@ -635,7 +639,18 @@ unsigned long usr_virt_to_phys(unsigned long virt)
 		return 0;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	p4d = p4d_offset(pgd, virt);
+
+	if (p4d_none(*p4d)) {
+		printk("printk: not mapped in p4d!\n");
+		return 0;
+	}
+
+	pud = pud_offset(p4d, virt);
+#else
 	pud = pud_offset(pgd, virt);
+#endif
 
 	if (pud_none(*pud)) {
 		printk("printk: not mapped in pud!\n");
@@ -686,9 +701,9 @@ EXPORT_SYMBOL(usr_virt_to_phys);
 	do {                                                                \
 		mmz_mmz_t *__mach_mmb_zone__ = NULL;                        \
 		(p) = NULL;                                                 \
-		list_for_each_entry(__mach_mmb_zone__, &mmz_list, list) {   \
+		osal_list_for_each_entry(__mach_mmb_zone__, &mmz_list, list) {   \
 			mmz_mmb_t *__mach_mmb__ = NULL;                     \
-			list_for_each_entry(__mach_mmb__,                   \
+			osal_list_for_each_entry(__mach_mmb__,                   \
 					    &__mach_mmb_zone__->mmb_list,   \
 					    list) {                         \
 				if ((__mach_mmb__->member <= (val)) &&      \
@@ -930,8 +945,8 @@ static void map_mmz_exit(void)
 
 	mmz_trace_func();
 
-	list_for_each_safe(p, n, &map_mmz_list) {
-		pmmz = list_entry(p, mmz_mmz_t, list);
+	osal_list_for_each_safe(p, n, &map_mmz_list) {
+		pmmz = osal_list_entry(p, mmz_mmz_t, list);
 		printk(KERN_WARNING "MMZ force removed: " MMZ_MMZ_FMT_S "\n",
 		       mmz_mmz_fmt_arg(pmmz));
 		mmz_map_mmz_unregister(pmmz);
@@ -1029,17 +1044,17 @@ int mmz_mmb_flush_dcache_byaddr_safe(void *kvirt, unsigned long phys_addr,
 	if (kvirt == NULL)
 		return -EINVAL;
 
-	down_read(&mm->mmap_sem);
+	compat_mmap_read_lock(mm);
 
 	if (mmz_vma_check((unsigned long)(uintptr_t)kvirt,
 			  (unsigned long)(uintptr_t)kvirt + length)) {
-		up_read(&mm->mmap_sem);
+		compat_mmap_read_unlock(mm);
 		return -EPERM;
 	}
 
 	ret = mmz_mmb_flush_dcache_byaddr(kvirt, phys_addr, length);
 
-	up_read(&mm->mmap_sem);
+	compat_mmap_read_unlock(mm);
 
 	return ret;
 }
@@ -1062,14 +1077,14 @@ int mmz_read_proc(struct seq_file *sfile)
 	mmz_trace_func();
 
 	down(&mmz_lock);
-	list_for_each_entry(p, &mmz_list, list) {
+	osal_list_for_each_entry(p, &mmz_list, list) {
 		mmz_mmb_t *mmb = NULL;
 		seq_printf(sfile, "+---ZONE: " MMZ_MMZ_FMT_S "\n",
 			   mmz_mmz_fmt_arg(p));
 		mmz_total_size += p->nbytes / 1024;
 		++zone_number;
 
-		list_for_each_entry(mmb, &p->mmb_list, list) {
+		osal_list_for_each_entry(mmb, &p->mmb_list, list) {
 			seq_printf(sfile, "   |-MMB: " MMZ_MMB_FMT_S "\n",
 				   mmz_mmb_fmt_arg(mmb));
 			used_size += mmb->length / 1024;
@@ -1108,12 +1123,20 @@ static int mmz_proc_open(struct inode *inode, struct file *file)
 	return seq_open(file, &mmz_seq_ops);
 }
 
+#ifdef COMPAT_USE_PROC_OPS
+static struct proc_ops mmz_proc_ops = {
+	.proc_open = mmz_proc_open,
+	.proc_read = seq_read,
+	.proc_release = seq_release,
+};
+#else
 static struct file_operations mmz_proc_ops = {
 	.owner = THIS_MODULE,
 	.open = mmz_proc_open,
 	.read = seq_read,
 	.release = seq_release,
 };
+#endif
 
 static int __init media_mem_proc_init(void)
 {
@@ -1161,8 +1184,8 @@ static void __exit mmz_exit_check(void)
 
 	mmz_trace_func();
 
-	list_for_each_safe(p, n, &mmz_list) {
-		pmmz = list_entry(p, mmz_mmz_t, list);
+	osal_list_for_each_safe(p, n, &mmz_list) {
+		pmmz = osal_list_entry(p, mmz_mmz_t, list);
 		printk(KERN_WARNING "MMZ force removed: " MMZ_MMZ_FMT_S "\n",
 		       mmz_mmz_fmt_arg(pmmz));
 		mmz_mmz_unregister(pmmz);

@@ -161,7 +161,7 @@ align_err_int_cnt_t align_err_int_cnt[MIPI_RX_MAX_DEV_NUM];
  * function definition                                                      *
  ****************************************************************************/
 
-static void set_bit(unsigned long value, unsigned long offset, const void *addr)
+static void mipi_set_bit(unsigned long value, unsigned long offset, const void *addr)
 {
 	unsigned long t, mask;
 
@@ -1539,7 +1539,7 @@ void mipi_rx_enable_disable_clock(combo_dev_t combo_dev, int enable)
 		HI_ERR("mipi_rx clock ioremap failed!\n");
 		return;
 	}
-	set_bit(enable, 2, mipi_rx_clock_addr);
+	mipi_set_bit(enable, 2, mipi_rx_clock_addr);
 
 	osal_iounmap((void *)mipi_rx_clock_addr);
 }
@@ -1573,7 +1573,7 @@ void sensor_enable_disable_clock(sns_clk_source_t sns_clk_source, int enable)
 		HI_ERR("sensor clock ioremap failed!\n");
 		return;
 	}
-	set_bit(enable, offset, sensor_clock_addr);
+	mipi_set_bit(enable, offset, sensor_clock_addr);
 	osal_iounmap((void *)sensor_clock_addr);
 }
 
@@ -1589,7 +1589,7 @@ void sensor_drv_disable_clock(sns_clk_source_t sns_clk_source)
 
 void mipi_rx_core_reset_unreset(combo_dev_t combo_dev, int reset)
 {
-	set_bit(reset, 4, mipi_rx_core_reset_addr);
+	mipi_set_bit(reset, 4, mipi_rx_core_reset_addr);
 }
 
 void mipi_rx_drv_core_reset(combo_dev_t combo_dev)
@@ -1619,7 +1619,7 @@ void sensor_reset_unreset(sns_rst_source_t sns_reset_source, int reset)
 		HI_ERR("sensor reset ioremap failed!\n");
 		return;
 	}
-	set_bit(reset, offset, sensor_reset_addr);
+	mipi_set_bit(reset, offset, sensor_reset_addr);
 	osal_iounmap((void *)sensor_reset_addr);
 }
 

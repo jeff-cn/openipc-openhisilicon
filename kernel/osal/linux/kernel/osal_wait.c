@@ -8,6 +8,7 @@
 #include <linux/wait.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include "../../../../compat/kernel_compat.h"
 
 unsigned long osal_msecs_to_jiffies(const unsigned int m)
 {

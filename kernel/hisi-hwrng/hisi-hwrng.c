@@ -1,9 +1,12 @@
 #include <asm/io.h>
+#include <linux/version.h>
 #include <linux/delay.h>
 #include <linux/hw_random.h>
 #include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+
+#include "../compat/kernel_compat.h"
 
 struct rng_state *st;
 
@@ -40,8 +43,13 @@ static int rng_kthread(void *data)
 		bytes_read = rng_data_read(st, rng_buf, RNG_BUF_SIZE);
 
 		/* sleep until entropy bits under write_wakeup_threshold */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0)
+		add_hwgenerator_randomness((void *)rng_buf, bytes_read,
+					   RNG_ENTROPY(bytes_read), true);
+#else
 		add_hwgenerator_randomness((void *)rng_buf, bytes_read,
 					   RNG_ENTROPY(bytes_read));
+#endif
 
 		msleep_interruptible(1000);
 	}

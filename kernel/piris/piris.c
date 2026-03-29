@@ -29,14 +29,14 @@
 #include <linux/cdev.h>
 #include <linux/device.h>
 #if 1
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <linux/slab.h>
 #endif
 
 #else
 #include <linux/hrtimer.h>
 #endif
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <asm/io.h>
 #include <linux/slab.h>
 #include "piris_hal.h"
@@ -44,6 +44,7 @@
 #include "isp_ext.h"
 #include "mm_ext.h"
 #include "../compat/compat.h"
+#include "../compat/kernel_compat.h"
 
 #include <linux/completion.h>
 
@@ -511,6 +512,14 @@ void piris_timer_cb(unsigned long arg)
 	return;
 }
 
+#ifdef COMPAT_TIMER_SETUP
+static void piris_timer_cb_wrapper(struct timer_list *t)
+{
+	PIRIS_DEV *pdev = from_timer(pdev, t, timer);
+	piris_timer_cb((unsigned long)(GK_UINTPTR_T)pdev);
+}
+#endif
+
 static int piris_isp_register(int dev)
 {
 	ISP_PIRIS_CALLBACK_S stPirisCb = { 0 };
@@ -620,15 +629,18 @@ int piris_init(void)
 		sema_init(&p_piris_dev[i]->sem, 1);
 		init_completion(&p_piris_dev[i]->piris_comp);
 
+#ifdef COMPAT_TIMER_SETUP
+		timer_setup(&p_piris_dev[i]->timer, piris_timer_cb_wrapper, 0);
+#else
 		init_timer(&p_piris_dev[i]->timer);
 #ifndef __LITEOS__
 		p_piris_dev[i]->timer.function = piris_timer_cb;
 #else
 		p_piris_dev[i]->timer.function = (void *)piris_timer_cb;
 #endif
-
 		p_piris_dev[i]->timer.data =
 			(unsigned long)(GK_UINTPTR_T)p_piris_dev[i];
+#endif
 		p_piris_dev[i]->timer.expires = jiffies + HZ; /* one second */
 
 		p_piris_dev[i]->phase_tbl = motor_phase_tbl;
@@ -681,7 +693,7 @@ static int piris_probe(struct platform_device *pdev)
 {
 	struct resource *mem;
 	int i;
-	PIRIS_DEV *pdev;
+	/* PIRIS_DEV unused */
 
 	for (i = 0; i < PIRIS_MAX_DEV_NUM; i++) {
 		mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);

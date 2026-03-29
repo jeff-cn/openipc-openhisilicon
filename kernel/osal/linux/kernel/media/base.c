@@ -3,6 +3,7 @@
  */
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/version.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/slab.h>
@@ -39,10 +40,20 @@ static ssize_t modalias_show(struct device *dev, struct device_attribute *a,
 	return (len >= PAGE_SIZE) ? (PAGE_SIZE - 1) : len;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+static DEVICE_ATTR_RO(modalias);
+
+static struct attribute *media_dev_attrs[] = {
+	&dev_attr_modalias.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(media_dev);
+#else
 static struct device_attribute media_dev_attrs[] = {
 	__ATTR_RO(modalias),
 	__ATTR_NULL,
 };
+#endif
 
 /* bus match & uevent */
 static int media_match(struct device *dev, struct device_driver *drv)
@@ -52,9 +63,15 @@ static int media_match(struct device *dev, struct device_driver *drv)
 			sizeof(pdev->devfs_name)) == 0);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+static int media_uevent(const struct device *dev, struct kobj_uevent_env *env)
+{
+	struct media_device *pdev = to_media_device((struct device *)dev);
+#else
 static int media_uevent(struct device *dev, struct kobj_uevent_env *env)
 {
 	struct media_device *pdev = to_media_device(dev);
+#endif
 	add_uevent_var(env, "MODALIAS=media:%s", pdev->devfs_name);
 	return 0;
 }
@@ -252,7 +269,11 @@ static struct dev_pm_ops media_bus_pm_ops = {
 
 struct bus_type media_bus_type = {
 	.name = "media",
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+	.dev_groups = media_dev_groups,
+#else
 	.dev_attrs = media_dev_attrs,
+#endif
 	.match = media_match,
 	.uevent = media_uevent,
 	.pm = &media_bus_pm_ops,

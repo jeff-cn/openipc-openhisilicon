@@ -13,6 +13,7 @@
 #include <linux/mm.h>
 #include <linux/kmod.h>
 #include "osal.h"
+#include "../../../../compat/kernel_compat.h"
 
 #define DRVAL_DEBUG 0
 
@@ -974,7 +975,7 @@ int osal_io_remap_pfn_range(osal_vm_t *vm, unsigned long addr,
 			    unsigned long pfn, unsigned long size)
 {
 	struct vm_area_struct *v = (struct vm_area_struct *)(vm->vm);
-	v->vm_flags |= VM_IO;
+	compat_vm_flags_set(v, VM_IO);
 	if (size == 0) {
 		return -EPERM;
 	}

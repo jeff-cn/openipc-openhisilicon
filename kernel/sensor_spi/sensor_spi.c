@@ -18,8 +18,9 @@
 #include "fcntl.h"
 #else
 #include <linux/spi/spi.h>
+#include "../compat/kernel_compat.h"
 #endif
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include "isp_ext.h"
 #include "sensor_spi.h"
 
@@ -348,7 +349,7 @@ static int __init sensor_spi_dev_init(void)
 	}
 
 	for (bus_num = 0; bus_num < SPI_MAX_NUM; bus_num++) {
-		master = spi_busnum_to_master(bus_num);
+		master = spi_busnum_to_controller(bus_num);
 		for (csn = 0; csn < spi_csn[bus_num]; csn++) {
 			if (master) {
 				spi_master[bus_num] = master;
@@ -373,7 +374,7 @@ static int __init sensor_spi_dev_init(void)
 				}
 			} else {
 				dev_err(NULL,
-					"spi_busnum_to_master() error!\n");
+					"spi_busnum_to_controller() error!\n");
 				status = -ENXIO;
 				goto end0;
 			}

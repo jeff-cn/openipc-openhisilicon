@@ -1,6 +1,8 @@
 #ifndef COMPAT_H
 #define COMPAT_H
 
+#include <linux/i2c.h>
+
 #if defined(hi3516ev200)
 
 /* hi3516ev200 hi3516ev300 hi3518ev300 hi3516dv200 */
@@ -17,6 +19,8 @@
 #define HI_PRX "hi_"
 #define VENDOR_PRX "hi35xx_"
 
+extern int hi_i2c_master_send(const struct i2c_client *client,
+			      const char *buf, int count);
 #define I2C_MASTER_SEND hi_i2c_master_send
 #define GET_CMA_ZONE hisi_get_cma_zone
 
@@ -55,6 +59,17 @@
 #error CHIPARCH must be set to supported values
 #endif
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+/*
+ * 6.4+ reworked symbol export internals (__CRC_SYMBOL, struct kernel_symbol
+ * moved to asm-based .export_symbol section). Use function aliasing instead:
+ * create a global alias via __attribute__((alias)) and export it normally.
+ */
+#define EXPORT_ALIAS(sym, alias)                                            \
+	extern typeof(sym) alias __attribute__((alias(#sym)));              \
+	EXPORT_SYMBOL(alias)
+#else
 #define EXPORT_ALIAS(sym, alias)                                            \
 	extern typeof(sym) sym;                                             \
 	__CRC_SYMBOL(sym, "")                                               \
@@ -65,5 +80,6 @@
 		__attribute__((section("___ksymtab+" #alias), used)) = {    \
 			(unsigned long)&sym, __kstrtab_##alias              \
 		}
+#endif
 
 #endif /* COMPAT_H */

@@ -27,14 +27,16 @@
 #include <linux/sched.h>
 #include <linux/dma-mapping.h>
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <asm/io.h>
 #include <asm/cacheflush.h>
 
 #include "osal_mmz.h"
 #include "osal.h"
 
-#define error(s...)                                                \
+#include "../../../../compat/kernel_compat.h"
+
+#define mmz_error(s...)                                                \
 	do {                                                       \
 		printk(KERN_ERR "mmz_userdev:%s: ", __FUNCTION__); \
 		printk(s);                                         \
@@ -59,7 +61,7 @@ static int mmz_flush_dcache_mmb_dirty(struct dirty_area *p_area)
 	}
 
 #ifdef CONFIG_64BIT
-	__flush_dcache_area(p_area->dirty_virt_start, p_area->dirty_size);
+	compat_flush_dcache_area(p_area->dirty_virt_start, p_area->dirty_size);
 #else
 	/* flush l1 cache, use vir addr */
 	__cpuc_flush_dcache_area(p_area->dirty_virt_start, p_area->dirty_size);
@@ -90,7 +92,7 @@ static int mmz_flush_dcache_mmb(struct mmb_info *pmi)
 	}
 
 #ifdef CONFIG_64BIT
-	__flush_dcache_area(pmi->mapped, (size_t)pmi->size);
+	compat_flush_dcache_area(pmi->mapped, (size_t)pmi->size);
 #else
 	/* flush l1 cache, use vir addr */
 	__cpuc_flush_dcache_area(pmi->mapped, (size_t)pmi->size);
@@ -128,7 +130,7 @@ static int mmz_userdev_open(struct inode *inode, struct file *file)
 
 	pmu = kmalloc(sizeof(*pmu), GFP_KERNEL);
 	if (pmu == NULL) {
-		error("alloc mmz_userdev_info failed!\n");
+		mmz_error("alloc mmz_userdev_info failed!\n");
 		return -ENOMEM;
 	}
 	memset(pmu, 0, sizeof(*pmu));
@@ -154,11 +156,11 @@ static int ioctl_mmb_alloc(struct file *file, unsigned int iocmd,
 			    pmi->mmz_name);
 	if (mmb == NULL) {
 #if defined(KERNEL_BIT_64) && defined(USER_BIT_32)
-		error("mmz_mmb_alloc(%s, %llu, 0x%llx, %lu, %s) failed!\n",
+		mmz_error("mmz_mmb_alloc(%s, %llu, 0x%llx, %lu, %s) failed!\n",
 		      pmi->mmb_name, pmi->size, pmi->align, pmi->gfp,
 		      pmi->mmz_name);
 #else
-		error("mmz_mmb_alloc(%s, %lu, 0x%lx, %lu, %s) failed!\n",
+		mmz_error("mmz_mmb_alloc(%s, %lu, 0x%lx, %lu, %s) failed!\n",
 		      pmi->mmb_name, pmi->size, pmi->align, pmi->gfp,
 		      pmi->mmz_name);
 #endif
@@ -168,7 +170,7 @@ static int ioctl_mmb_alloc(struct file *file, unsigned int iocmd,
 	new_mmbinfo = kmalloc(sizeof(*new_mmbinfo), GFP_KERNEL);
 	if (new_mmbinfo == NULL) {
 		mmz_mmb_free(mmb);
-		error("alloc mmb_info failed!\n");
+		mmz_error("alloc mmb_info failed!\n");
 		return -ENOMEM;
 	}
 
@@ -198,11 +200,11 @@ static int ioctl_mmb_alloc_v2(struct file *file, unsigned int iocmd,
 
 	if (mmb == NULL) {
 #if defined(KERNEL_BIT_64) && defined(USER_BIT_32)
-		error("mmz_mmb_alloc(%s, %llu, 0x%llx, %lu, %s) failed!\n",
+		mmz_error("mmz_mmb_alloc(%s, %llu, 0x%llx, %lu, %s) failed!\n",
 		      pmi->mmb_name, pmi->size, pmi->align, pmi->gfp,
 		      pmi->mmz_name);
 #else
-		error("mmz_mmb_alloc(%s, %lu, 0x%lx, %lu, %s) failed!\n",
+		mmz_error("mmz_mmb_alloc(%s, %lu, 0x%lx, %lu, %s) failed!\n",
 		      pmi->mmb_name, pmi->size, pmi->align, pmi->gfp,
 		      pmi->mmz_name);
 #endif
@@ -213,7 +215,7 @@ static int ioctl_mmb_alloc_v2(struct file *file, unsigned int iocmd,
 
 	if (new_mmbinfo == NULL) {
 		mmz_mmb_free(mmb);
-		error("alloc mmb_info failed!\n");
+		mmz_error("alloc mmb_info failed!\n");
 		return -ENOMEM;
 	}
 
@@ -258,7 +260,7 @@ static struct mmb_info *get_mmbinfo_safe(unsigned long addr,
 	p = get_mmbinfo(addr, pmu);
 
 	if (p == NULL) {
-		error("mmb(0x%08lX) not found!\n", addr);
+		mmz_error("mmb(0x%08lX) not found!\n", addr);
 		return NULL;
 	}
 
@@ -338,7 +340,7 @@ static int ioctl_mmb_user_remap(struct file *file, unsigned int iocmd,
      */
 	if (p->mapped && (p->map_ref > 0)) {
 		if (cached != p->map_cached) {
-			error("mmb<%s> already mapped as %s, cannot remap as %s.\n",
+			mmz_error("mmb<%s> already mapped as %s, cannot remap as %s.\n",
 			      p->mmb->name,
 			      p->map_cached ? "cached" : "non-cached",
 			      cached ? "cached" : "non-cached");
@@ -385,7 +387,7 @@ static int ioctl_mmb_user_remap(struct file *file, unsigned int iocmd,
 	pmu->mmap_pid = 0;
 
 	if (IS_ERR_VALUE((uintptr_t)addr)) {
-		error("vm_mmap(file, 0, %lu, 0x%08lX, 0x%08lX, 0x%08lX) return 0x%08lX\n",
+		mmz_error("vm_mmap(file, 0, %lu, 0x%08lX, 0x%08lX, 0x%08lX) return 0x%08lX\n",
 		      len, prot, flags, pgoff, addr);
 		return addr;
 	}
@@ -431,7 +433,7 @@ static int ioctl_mmb_user_unmap(struct file *file, unsigned int iocmd,
 	}
 
 	if (!((p->map_ref > 0) && (p->mmb_ref > 0))) {
-		error("mmb<%s> has invalid refer: map_ref=%d, mmb_ref=%d.\n",
+		mmz_error("mmb<%s> has invalid refer: map_ref=%d, mmb_ref=%d.\n",
 		      p->mmb->name, p->map_ref, p->mmb_ref);
 		return -EIO;
 	}
@@ -450,14 +452,14 @@ static int ioctl_mmb_user_unmap(struct file *file, unsigned int iocmd,
 	/* todo,before unmap,refresh cache manually */
 	if (p->map_cached) {
 		struct mm_struct *mm = current->mm;
-		down_read(&mm->mmap_sem);
+		compat_mmap_read_lock(mm);
 		if (mmz_vma_check(addr, addr + len)) {
-			error("mmb<%s> vma is invalid.\n", p->mmb->name);
-			up_read(&mm->mmap_sem);
+			mmz_error("mmb<%s> vma is invalid.\n", p->mmb->name);
+			compat_mmap_read_unlock(mm);
 			return -EPERM;
 		}
 #ifdef CONFIG_64BIT
-		__flush_dcache_area((void *)(uintptr_t)addr, (size_t)len);
+		compat_flush_dcache_area((void *)(uintptr_t)addr, (size_t)len);
 #else
 		__cpuc_flush_dcache_area((void *)(uintptr_t)addr, (size_t)len);
 #if defined(CONFIG_CACHE_L2V200) || defined(CONFIG_CACHE_L2X0)
@@ -466,7 +468,7 @@ static int ioctl_mmb_user_unmap(struct file *file, unsigned int iocmd,
 		outer_flush_range(p->phys_addr, p->phys_addr + len);
 #endif
 #endif /* CONFIG_64BIT */
-		up_read(&mm->mmap_sem);
+		compat_mmap_read_unlock(mm);
 	}
 
 	ret = vm_munmap(addr, len);
@@ -497,7 +499,7 @@ static int ioctl_mmb_virt2phys(struct file *file, unsigned int iocmd,
 	}
 
 	if (mmz_mmb_getby_phys_2(phys, &offset) == NULL) {
-		error("Not mmz alloc memory[0x%lx 0x%lx]! 0x%lx\n", virt, phys,
+		mmz_error("Not mmz alloc memory[0x%lx 0x%lx]! 0x%lx\n", virt, phys,
 		      offset);
 		return -EINVAL;
 	}
@@ -539,7 +541,7 @@ static int mmz_userdev_ioctl_m(struct file *file, unsigned int cmd,
 		ret = ioctl_mmb_virt2phys(file, cmd, pmi);
 		break;
 	default:
-		error("invalid ioctl cmd = %08X\n", cmd);
+		mmz_error("invalid ioctl cmd = %08X\n", cmd);
 		ret = -EINVAL;
 		break;
 	}
@@ -557,7 +559,7 @@ static int mmz_userdev_ioctl_r(struct file *file, unsigned int cmd,
 		break;
 	case _IOC_NR(IOC_MMB_DEC_REF):
 		if (pmi->mmb_ref <= 0) {
-			error("mmb<%s> mmb_ref is %d!\n", pmi->mmb->name,
+			mmz_error("mmb<%s> mmb_ref is %d!\n", pmi->mmb->name,
 			      pmi->mmb_ref);
 			return -EPERM;
 		}
@@ -592,7 +594,7 @@ static long mmz_userdev_ioctl(struct file *file, unsigned int cmd,
 		struct mmb_info mi = { 0 };
 
 		if ((_IOC_SIZE(cmd) > sizeof(mi)) || (arg == 0)) {
-			error("_IOC_SIZE(cmd)=%d, arg==0x%08lX\n",
+			mmz_error("_IOC_SIZE(cmd)=%d, arg==0x%08lX\n",
 			      _IOC_SIZE(cmd), arg);
 			ret = -EINVAL;
 			goto __error_exit;
@@ -655,7 +657,7 @@ static long mmz_userdev_ioctl(struct file *file, unsigned int cmd,
 		struct mm_struct *mm = current->mm;
 
 		if ((_IOC_SIZE(cmd) != sizeof(area)) || (arg == 0)) {
-			error("_IOC_SIZE(cmd)=%d, arg==0x%08lx\n",
+			mmz_error("_IOC_SIZE(cmd)=%d, arg==0x%08lx\n",
 			      _IOC_SIZE(cmd), arg);
 			ret = -EINVAL;
 			goto __error_exit;
@@ -672,10 +674,10 @@ static long mmz_userdev_ioctl(struct file *file, unsigned int cmd,
 		if ((mmb = mmz_mmb_getby_phys_2(area.dirty_phys_start,
 						&offset)) == NULL) {
 #if defined(KERNEL_BIT_64) && defined(USER_BIT_32)
-			error("dirty_phys_addr=0x%llx\n",
+			mmz_error("dirty_phys_addr=0x%llx\n",
 			      area.dirty_phys_start);
 #else
-			error("dirty_phys_addr=0x%lx\n", area.dirty_phys_start);
+			mmz_error("dirty_phys_addr=0x%lx\n", area.dirty_phys_start);
 #endif
 			ret = -EFAULT;
 			goto __error_exit;
@@ -700,7 +702,7 @@ static long mmz_userdev_ioctl(struct file *file, unsigned int cmd,
 			goto __error_exit;
 		}
 
-		down_read(&mm->mmap_sem);
+		compat_mmap_read_lock(mm);
 
 		if (mmz_vma_check((uintptr_t)area.dirty_virt_start,
 				  (uintptr_t)area.dirty_virt_start +
@@ -711,7 +713,7 @@ static long mmz_userdev_ioctl(struct file *file, unsigned int cmd,
 			       (unsigned long)(uintptr_t)area.dirty_virt_start +
 				       area.dirty_size);
 			ret = -EFAULT;
-			up_read(&mm->mmap_sem);
+			compat_mmap_read_unlock(mm);
 			goto __error_exit;
 		}
 
@@ -728,12 +730,12 @@ static long mmz_userdev_ioctl(struct file *file, unsigned int cmd,
 			~(CACHE_LINE_SIZE - 1);
 
 		mmz_flush_dcache_mmb_dirty(&area);
-		up_read(&mm->mmap_sem);
+		compat_mmap_read_unlock(mm);
 	} else if (_IOC_TYPE(cmd) == 't') {
 		struct mmb_info mi;
 
 		if ((_IOC_SIZE(cmd) != sizeof(mi)) || (arg == 0)) {
-			error("_IOC_SIZE(cmd)=%d, arg==0x%08lx\n",
+			mmz_error("_IOC_SIZE(cmd)=%d, arg==0x%08lx\n",
 			      _IOC_SIZE(cmd), arg);
 			ret = -EINVAL;
 			goto __error_exit;
@@ -794,7 +796,7 @@ int mmz_userdev_mmap(struct file *file, struct vm_area_struct *vma)
 		}
 	} else {
 		if (p->mapped != NULL) {
-			error("mmb(0x%08lX) have been mapped already?!\n",
+			mmz_error("mmb(0x%08lX) have been mapped already?!\n",
 			      offset);
 			return -EIO;
 		}
@@ -865,15 +867,15 @@ int mmz_userdev_mmap(struct file *file, struct vm_area_struct *vma)
 			if (pfn_valid(pfn)) {
 				if (vm_insert_page(vma, start,
 						   pfn_to_page(pfn))) {
-					error("insert page failed.\n");
+					mmz_error("insert page failed.\n");
 					break;
 				}
 			} else {
 #ifdef CONFIG_64BIT
-				error("vm map failed for phy address(0x%llx)\n",
+				mmz_error("vm map failed for phy address(0x%llx)\n",
 				      __pfn_to_phys(pfn));
 #else
-				error("vm map failed for phy address(0x%x)\n",
+				mmz_error("vm map failed for phy address(0x%x)\n",
 				      __pfn_to_phys(pfn));
 #endif
 			}
@@ -907,7 +909,7 @@ static int mmz_userdev_release(struct inode *inode, struct file *file)
 	struct mmb_info *p = NULL, *n = NULL;
 
 	list_for_each_entry_safe(p, n, &pmu->list, list) {
-		error("MMB LEAK(pid=%d): 0x%lX, %lu bytes, '%s'\n", pmu->pid,
+		mmz_error("MMB LEAK(pid=%d): 0x%lX, %lu bytes, '%s'\n", pmu->pid,
 		      mmz_mmb_phys(p->mmb), mmz_mmb_length(p->mmb),
 		      mmz_mmb_name(p->mmb));
 

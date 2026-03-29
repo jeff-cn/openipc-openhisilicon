@@ -571,7 +571,12 @@ typedef int (*osal_notifier_fn_t)(struct osal_notifier_block *nb,
 extern int osal_register_reboot_notifier(struct osal_notifier_block *nb);
 extern int osal_unregister_reboot_notifier(struct osal_notifier_block *nb);
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+#include <linux/stdarg.h>
+#else
 #include <stdarg.h>
+#endif
 
 #ifndef _OSAL_VA_LIST
 

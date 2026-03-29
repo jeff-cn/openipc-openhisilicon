@@ -7,6 +7,7 @@
 #include <linux/string.h>
 #include <linux/io.h>
 #include <linux/i2c.h>
+#include "../compat/kernel_compat.h"
 
 #ifdef __LITEOS__
 #include <i2c.h>
@@ -177,7 +178,7 @@ static int __init dev_init(void)
 
 	for (i = 0; i < I2C_MAX_NUM; i++) {
 		i2c_adap = i2c_get_adapter(i);
-		sensor_client[i] = i2c_new_device(i2c_adap, &info);
+		sensor_client[i] = i2c_new_client_device(i2c_adap, &info);
 
 		i2c_put_adapter(i2c_adap);
 	}

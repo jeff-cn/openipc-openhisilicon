@@ -18,16 +18,64 @@ jobs:
       matrix:
         include:
           - platform: hi3516ev200
+            board: hi3516ev200_lite
           - platform: gk7205v200
+            board: gk7205v200_lite
+          - platform: hi3516ev300
+            board: hi3516ev300_neo
+            kernel: "6.6"
+            experimental: true
+
+    continue-on-error: ${{matrix.experimental || false}}
 
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
 
+      - name: Clone firmware
+        run: git clone --depth 1 https://github.com/openipc/firmware ../firmware
+
+      - name: Setup neo target (6.6 kernel)
+        if: matrix.kernel == '6.6'
+        run: |
+          cd ../firmware
+
+          # Create neo defconfig if not present
+          if [ ! -f br-ext-chip-hisilicon/configs/hi3516ev300_neo_defconfig ]; then
+            cp br-ext-chip-hisilicon/configs/hi3516ev300_lite_defconfig \
+               br-ext-chip-hisilicon/configs/hi3516ev300_neo_defconfig
+            sed -i 's|$(OPENIPC_KERNEL).tar.gz|hisilicon-hi3516ev200-6.6.tar.gz|' \
+               br-ext-chip-hisilicon/configs/hi3516ev300_neo_defconfig
+            sed -i 's|hi3516ev300.generic.config|hi3516ev300.4.15.config|' \
+               br-ext-chip-hisilicon/configs/hi3516ev300_neo_defconfig
+            sed -i 's|VARIANT="lite"|VARIANT="neo"|' \
+               br-ext-chip-hisilicon/configs/hi3516ev300_neo_defconfig
+            echo 'BR2_LINUX_KERNEL_UIMAGE_LOADADDR="0x40008000"' >> \
+               br-ext-chip-hisilicon/configs/hi3516ev300_neo_defconfig
+            echo 'BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL)/package/all-patches-neo"' >> \
+               br-ext-chip-hisilicon/configs/hi3516ev300_neo_defconfig
+          fi
+
+          # Create 6.6 kernel config if not present
+          if [ ! -f br-ext-chip-hisilicon/board/hi3516ev200/hi3516ev300.4.15.config ]; then
+            cp br-ext-chip-hisilicon/board/hi3516ev200/hi3516ev300.generic.config \
+               br-ext-chip-hisilicon/board/hi3516ev200/hi3516ev300.4.15.config
+          fi
+
+          # Create all-patches-neo with empty linux dir
+          mkdir -p general/package/all-patches-neo/linux
+          for d in general/package/all-patches/*/; do
+            name=$(basename "$d")
+            [ "$name" != "linux" ] && ln -sf "../all-patches/$name" "general/package/all-patches-neo/$name"
+          done
+
+          # Fragment comes before defconfig so defconfig can override
+          sed -i 's|cat $(CONFIG) $(PWD)/general/openipc.fragment|cat $(PWD)/general/openipc.fragment $(CONFIG)|' Makefile
+
       - name: Build OpenHisilicon
         run: |
-          git clone --depth 1 https://github.com/openipc/firmware ../firmware
           cd ../firmware
           FILE=general/package/hisilicon-opensdk/hisilicon-opensdk.mk
-          sed -i -z "s|HISILICON_OPENSDK_SITE.*HEAD|HISILICON_OPENSDK_SITE_METHOD = local\nHISILICON_OPENSDK_SITE = $GITHUB_WORKSPACE|g" ${FILE}
-          make BOARD=${{matrix.platform}}_lite br-hisilicon-opensdk
+          sed -i "s|^HISILICON_OPENSDK_SITE =.*|HISILICON_OPENSDK_SITE_METHOD = local\nHISILICON_OPENSDK_SITE = $GITHUB_WORKSPACE|" ${FILE}
+          sed -i "s|^HISILICON_OPENSDK_VERSION =.*||" ${FILE}
+          CMAKE_POLICY_VERSION_MINIMUM=3.5 make BOARD=${{matrix.board}} br-hisilicon-opensdk
