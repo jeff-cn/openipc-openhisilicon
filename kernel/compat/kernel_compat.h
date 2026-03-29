@@ -12,6 +12,15 @@
 #include <linux/version.h>
 
 /*
+ * On 6.4+, EXPORT_ALIAS is a no-op so the LOG symbol alias of HI_LOG
+ * is not created. Map LOG to HI_LOG at the preprocessor level.
+ * This is applied globally via -include in the top-level Kbuild.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+#define LOG HI_LOG
+#endif
+
+/*
  * Timer API: init_timer() removed in 4.15, timer callback signature changed.
  * 4.15+: timer_setup() + void(*)(struct timer_list*) callback
  * Pre-4.15: init_timer() + void(*)(unsigned long) callback + .data field
